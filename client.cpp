@@ -16,6 +16,7 @@ void downReq(int socket){
     string str;
     while (read(socket, buffer, 1024) > 0)
     {
+        cout <<"buf:"<<buffer << endl;
         str = buffer;
         string command = str;
         int idx = str.find('\n');
@@ -28,6 +29,7 @@ void downReq(int socket){
                 send(socket,"-1",2,0);
             }
             else{
+                writeLog("sendstart");
                 string strfilepath=downloads[hash].path;
                 int fd = open(strfilepath.c_str(),O_RDONLY,0);
                 if(fd == -1){
@@ -36,11 +38,19 @@ void downReq(int socket){
                 else{
                     char buffer[BUFSIZ];
                     string strfile="";
+                    bzero(buffer,BUFSIZ);
                     while(read(fd,buffer,BUFSIZ)>0){
                         strfile+=(string)buffer;
+                        bzero(buffer,BUFSIZ);
                     }
+                    strfile.insert(0,to_string(strfile.size())+"\n");
+                    cout << "filesie:"<<strfile.size()<<endl;
+                    //cout << "s:"<<strfile.substr(0,20)<<endl;
                     send(socket,strfile.c_str(),strfile.size(),0);
+                    cout << "sent"<<endl;
+                    close(fd);
                 }
+                
             }
         }
     }

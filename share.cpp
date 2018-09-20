@@ -18,6 +18,7 @@
 #include <openssl/sha.h>
 #include <vector>
 #include <thread>
+#include <map>
 using namespace std;
 
 string clientip, port;
@@ -31,10 +32,11 @@ void share(string src, string dest)
     if (fsrc == -1)
     {
         cout << "FAILURE:FILE_NOT_FOUND" << endl;
+        return;
     }
     int fdest = open(dest.c_str(), O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     int chunksize = 512 * 1024;
-    unsigned char buffer[chunksize];
+    
     size_t size;
     char charIP[INET_ADDRSTRLEN];
     string strdest;
@@ -56,30 +58,41 @@ void share(string src, string dest)
         strname = src.substr(idx + 1);
     }
     strdest += strname + "\n";
-    strdest += src + "\n";
+    //strdest += src + "\n";
     string str = "share\n" + clientip + ":" + port + "\n" + strname + "\n";
 
     struct stat st;
     stat(src.c_str(), &st);
     string strsize = to_string(st.st_size);
     strdest += "size:" + strsize + "\n";
-
+    cout << strdest << endl;
     write(fdest, strdest.c_str(), strdest.size());
     string strtemp="";
+
+    unsigned char buffer[chunksize];
+    bzero(buffer,chunksize);
     while ((size = read(fsrc, buffer, chunksize)) > 0)
     {
         unsigned char hashbuf[SHA_DIGEST_LENGTH];
-        SHA1(buffer, strlen((char *)buffer), hashbuf);
-        write(fdest, hashbuf, SHA_DIGEST_LENGTH);
+        SHA1(buffer,strlen((char *)buffer), hashbuf);
+        
         strtemp += ((char *)hashbuf);
+        bzero(buffer,chunksize);
        
     }
+    unsigned char hashtemp[strtemp.size()+1];
+    strcpy((char *)hashtemp,strtemp.c_str());
+    strtemp =  GetHexRepresentation(hashtemp,strtemp.size()+1);
+    cout << strtemp << endl;
+    write(fdest, strtemp.c_str(), strtemp.size());
+
     unsigned char hoh[SHA_DIGEST_LENGTH];
-    
     SHA1((unsigned char *)strtemp.c_str(),strtemp.size(),hoh);
     strtemp=(char *)hoh;
-    str+=strtemp;
-
+   
+    strtemp=GetHexRepresentation((unsigned char *)strtemp.c_str(),strtemp.size());
+    cout << strtemp << endl;
+     str+=strtemp;
     size_t s = send(trackfd, str.c_str(), str.size(), 0);
     if (s == -1)
     {
@@ -99,17 +112,48 @@ void share(string src, string dest)
 }
 
 void downloadfile(string hash,vector<struct tProp> vec,string dest){
+    
     string str="down\n"+hash;
     struct tProp tp = vec[0];
     sockaddr_in addr = setAddr(tp.clientip+":"+tp.port);
+    cout << tp.clientip+":"+tp.port<<endl;
+    cout.flush();
+    writeLog("down"+tp.clientip+":"+tp.port);
     int fd = connectSocket(addr);
     send(fd,str.c_str(),str.size(),0);
     char buffer[BUFSIZ];
-    int destfd = open(dest.c_str(),O_CREAT|O_WRONLY|O_TRUNC,O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-    while(read(fd,buffer,BUFSIZ)>0){
-        write(destfd,buffer,BUFSIZ);
+    bzero(buffer,BUFSIZ);
+    int destfd = open(dest.c_str(),O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+     long long sz=-1;
+     long long rcvsz = 0;
+    string temp="";
+    size_t size;
+    
+    while(sz < rcvsz && (size=recv(fd,buffer,BUFSIZ,0)>0)){
+        //cout << buffer<<endl;
+        temp += (string)buffer;
+        if(temp == "-1"){
+            cout << "FAILURE:M_TORRENT_FILE_NOT_FOUND";
+                return;
+        }
+        if(sz == -1){
+            int idx=temp.find('\n');
+            rcvsz = stoull(temp.substr(0,idx));
+            temp.erase(0,idx+1);
+            cout << "sz"<<rcvsz<<endl;
+            sz=0;
+        }
+        sz+=BUFSIZ;        
+        bzero(buffer,BUFSIZ);
+        
     }
-    cout << "SUCCESS:"+dest;
+    cout << "Rd"<<size<<endl;
+    cout << "sz"<<rcvsz<<endl;
+    temp = temp.substr(0,rcvsz);
+    write(destfd,temp.c_str(),temp.size());
+    close(destfd);
+    cout << "SUCCESS:"+dest<<endl;
+    writeLog("success"+dest);
 }
 
 void getlist(string torrent, string savefile)
@@ -129,13 +173,18 @@ void getlist(string torrent, string savefile)
     }
 
     string hash = strfile.substr(strfile.find_last_of('\n') + 1);
+    cout << "h:"<<hash<<endl;
+    //hash=GetHexRepresentation((unsigned char *)hash.c_str(),hash.size());
+
+    
 
     unsigned char hoh[SHA_DIGEST_LENGTH];
     
     SHA1((unsigned char *)hash.c_str(),hash.size(),hoh);
     string strtemp=(char *)hoh;
     
-
+    strtemp= GetHexRepresentation((unsigned char *)strtemp.c_str(),strtemp.size());
+    cout << strtemp << endl;
     string str = "get\n" + strtemp;
 
     size_t s = send(trackfd, str.c_str(), str.size(), 0);
@@ -144,7 +193,7 @@ void getlist(string torrent, string savefile)
         trackfd = updatetracker(trackeraddr1, trackeraddr2, &currtracker);
         send(trackfd, str.c_str(), str.size(), 0);
     }
-    cout << "sent:" << hash << endl;
+    
     string rcv = "";
     char bufrcv[BUFSIZ];
     int strsize = 0;

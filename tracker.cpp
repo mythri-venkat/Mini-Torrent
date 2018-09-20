@@ -125,12 +125,12 @@ void Request(int socket)
             hash = str.substr(idx + 1);
             mpTorrentList[hash].push_back(tp);
             writeSeederlist(seedfilepath,mpTorrentList);
-            cout << ("seeder list updated:") << mpTorrentList.size() << endl;
+            cout << ("seeder list updated:") << GetHexRepresentation((unsigned char *)hash.c_str(),hash.size()) << endl;
         }
         else if(command == "get"){
             cout << "get"<<endl;
             string hash = str.substr(idx+1);
-            cout << hash <<endl;
+            cout << GetHexRepresentation((unsigned char *)hash.c_str(),hash.size()) <<endl;
             if(mpTorrentList.find(hash) == mpTorrentList.end()){
                 send(socket,"-1",2,0);
                 cout << "not found"<<endl;
