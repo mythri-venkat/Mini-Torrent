@@ -119,7 +119,7 @@ void downloadfile(string hash,vector<struct tProp> vec,string dest){
     sockaddr_in addr = setAddr(tp.clientip+":"+tp.port);
     cout << tp.clientip+":"+tp.port<<endl;
     cout.flush();
-    writeLog("down"+tp.clientip+":"+tp.port);
+    writeLog("download from:\n"+tp.clientip+":"+tp.port);
     int fd = connectSocket(addr);
     send(fd,str.c_str(),str.size(),0);
     char buffer[BUFSIZ];
@@ -128,10 +128,10 @@ void downloadfile(string hash,vector<struct tProp> vec,string dest){
     long long sz=-1;
     long long rcvsz = 0;
     string temp="";
-    int size;
-    recv(fd, buffer, BUFSIZ, 0);
-        size = atoi(buffer);
-        cout << "sz:"<<size<<endl;
+    unsigned long size;
+    int rc=recv(fd, (char *)&size, sizeof(size), 0);
+        //size = atoi(buffer);
+       writeLog("sIZEz:"+size);
     if(size == -1){
         cout << "FAILURE:M_TORRENT_FILE_NOT_FOUND"<<endl;
         return;
@@ -143,11 +143,11 @@ void downloadfile(string hash,vector<struct tProp> vec,string dest){
 
     int remain_data = size;
     ssize_t len;
-    while ((remain_data > 0) &&((len = recv(fd, buffer, BUFSIZ, 0)) > 0) )
+    while ((remain_data > 0) && ((len = recv(fd, buffer, BUFSIZ, 0)) > 0) )
     {
         fwrite(buffer, sizeof(char), len, savefile);
         remain_data -= len;
-        cout << len << "  "<<remain_data << endl;
+        
     }
     
     fclose(savefile);

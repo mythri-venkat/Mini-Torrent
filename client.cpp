@@ -10,7 +10,7 @@ using namespace std;
 
 map<string,map<string,int>> mpconnections;
 
-void downReq(int socket){
+void downReq(int idx,int socket){
     size_t size;
     char buffer[1024];
     bzero(buffer, 1024);
@@ -28,6 +28,7 @@ void downReq(int socket){
             string hash = str.substr(idx+1);
             if(downloads.find(hash) == downloads.end()){
                 send(socket,"-1",2,0);
+                writeLog("notsent");
             }
             else{
                 writeLog("sendstart");
@@ -35,16 +36,16 @@ void downReq(int socket){
                 int fd = open(strfilepath.c_str(),O_RDONLY,0);
                 if(fd == -1){
                     send(socket,"-1",2,0);
-                    cout << "notsent"<<endl;
+                    writeLog("notsent");
                 }
                 else{
                    
-                    cout << "send"<<endl;
+                    //cout << "send"<<endl;
                     int sent_bytes=0;
                     
-                    string sz = to_string(downloads[hash].size);
-                    send(socket, sz.c_str(),sz.size()+1, 0);
-                    cout << "sizesent:"<<sz<<endl;
+                    //string sz = to_string(downloads[hash].size);
+                    send(socket,(char *)&downloads[hash].size,sizeof(downloads[hash].size), 0);
+                    writeLog("sizesent:"+downloads[hash].size);
         
                     long int offset = 0;
                     int remain_data = downloads[hash].size;
@@ -55,7 +56,7 @@ void downReq(int socket){
                         cout << remain_data << endl;
                 
                     }
-                    cout << "datasent"<<endl;
+                    writeLog("send complete");
                     //shutdown(socket,0);
                     //close(socket);
                 }
@@ -63,7 +64,7 @@ void downReq(int socket){
             }
         }
     }
-
+    
 }
 
 
@@ -72,9 +73,10 @@ void listenClient(){
     int new_socket;
     int server_fd = listenServer(myaddr);
     int addrlen = sizeof(myaddr);
-    vector<thread> vthread;
+    
     int i = 0;
-    cout << ("listening") << endl;
+    writeLog("listening");
+    vector<thread> vthread;
     while (1)
     {
 
@@ -87,10 +89,7 @@ void listenClient(){
         vthread.push_back(thread(downReq, new_socket));
 
         i++;
-        if (i == 50)
-        {
-            break;
-        }
+       
     }
 
     for (int j = 0; j < 50; j++)
