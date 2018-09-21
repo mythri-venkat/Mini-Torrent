@@ -28,6 +28,7 @@ struct tProp
     vector<int> chunks;
     bool complete=false;
     string path;
+    size_t size;
 };
 
 

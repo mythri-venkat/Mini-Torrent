@@ -2,6 +2,7 @@
 #include "share.cpp"
 #include <thread>
 #include <map>
+#include <sys/sendfile.h>
 
 using namespace std;
 
@@ -34,21 +35,29 @@ void downReq(int socket){
                 int fd = open(strfilepath.c_str(),O_RDONLY,0);
                 if(fd == -1){
                     send(socket,"-1",2,0);
+                    cout << "notsent"<<endl;
                 }
                 else{
-                    char buffer[BUFSIZ];
-                    string strfile="";
-                    bzero(buffer,BUFSIZ);
-                    while(read(fd,buffer,BUFSIZ)>0){
-                        strfile+=(string)buffer;
-                        bzero(buffer,BUFSIZ);
+                   
+                    cout << "send"<<endl;
+                    int sent_bytes=0;
+                    
+                    string sz = to_string(downloads[hash].size);
+                    send(socket, sz.c_str(),sz.size()+1, 0);
+                    cout << "sizesent:"<<sz<<endl;
+        
+                    long int offset = 0;
+                    int remain_data = downloads[hash].size;
+                    while (((sent_bytes = sendfile(socket, fd, &offset, BUFSIZ)) > 0) && (remain_data > 0))
+                    {
+                
+                        remain_data -= sent_bytes;
+                        cout << remain_data << endl;
+                
                     }
-                    strfile.insert(0,to_string(strfile.size())+"\n");
-                    cout << "filesie:"<<strfile.size()<<endl;
-                    //cout << "s:"<<strfile.substr(0,20)<<endl;
-                    send(socket,strfile.c_str(),strfile.size(),0);
-                    cout << "sent"<<endl;
-                    close(fd);
+                    cout << "datasent"<<endl;
+                    //shutdown(socket,0);
+                    //close(socket);
                 }
                 
             }
@@ -122,7 +131,7 @@ int main(int argc, char *argv[])
     
     while (1)
     {
-        cout << "\n1.share 2.get 3.close:\n";
+        cout << "\n1.share 2.get 3.show downloads 4.close:\n";
 
         cin >> command;
         if (command == "share")
@@ -136,6 +145,17 @@ int main(int argc, char *argv[])
             string torrent, savefile;
             cin >> torrent >> savefile;
             getlist(torrent,savefile);
+        }
+        else if(command == "show"){
+            string next;
+            cin >> next;
+            if(next == "downloads"){
+                cout << "Downloads"<<endl;
+                for(auto it=downloads.begin();it != downloads.end();it++){
+                    cout << ((*it).second.complete?("[S] "):("[D] "));
+                    cout << (*it).second.filename << endl;
+                }
+            }
         }
         else if(command == "close"){
             break;
