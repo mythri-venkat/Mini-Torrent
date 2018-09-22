@@ -10,7 +10,7 @@ using namespace std;
 
 map<string,map<string,int>> mpconnections;
 
-void downReq(int idx,int socket){
+void downReq(int socket){
     size_t size;
     char buffer[1024];
     bzero(buffer, 1024);
@@ -130,31 +130,39 @@ int main(int argc, char *argv[])
     
     while (1)
     {
-        cout << "\n1.share 2.get 3.show downloads 4.close:\n";
-
-        cin >> command;
+        cout << "\n1.share 2.get 3.show downloads 4.remove 5.close:\n";
+        string strline="";
+        getline(std::cin,strline);
+        vector<string> args=getArgs(strline);
+        command=args[0];
         if (command == "share")
         {
-            string filepath, torrentpath;
-            cin >> filepath >> torrentpath;
-            share(filepath, torrentpath);
+            if(args.size()==3)
+            share(args[1], args[2]);
+            else
+            cout <<"ERR:INVALID_ARGUMENTS"<<endl;
         }
         else if(command ==  "get"){
             
-            string torrent, savefile;
-            cin >> torrent >> savefile;
-            getlist(torrent,savefile);
+            if(args.size()==3)
+            getlist(args[1], args[2]);
+            else
+            cout <<"ERR:INVALID_ARGUMENTS"<<endl;
         }
-        else if(command == "show"){
-            string next;
-            cin >> next;
-            if(next == "downloads"){
+        else if(command == "show downloads"){
+            
                 cout << "Downloads"<<endl;
                 for(auto it=downloads.begin();it != downloads.end();it++){
                     cout << ((*it).second.complete?("[S] "):("[D] "));
                     cout << (*it).second.filename << endl;
                 }
-            }
+            
+        }
+        else if(command == "remove"){
+            if(args.size()==2)
+            removeTorrent(args[1]);
+            else
+            cout <<"ERR:INVALID_ARGUMENTS"<<endl; 
         }
         else if(command == "close"){
             break;

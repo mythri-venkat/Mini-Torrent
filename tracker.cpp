@@ -23,7 +23,8 @@ int othrtracker = -1;
 enum seedCommand
 {
     setseed = 253,
-    getseed = 255
+    getseed = 255,
+    rmtor = 234
 };
 
 string writeSeederlist(string file, map<string, vector<tProp>> mp)
@@ -152,7 +153,7 @@ void Request(int socket)
         {
             cout << "get" << endl;
             string hash = str.substr(idx + 1);
-            cout << GetHexRepresentation((unsigned char *)hash.c_str(), hash.size()) << endl;
+            //cout << GetHexRepresentation((unsigned char *)hash.c_str(), hash.size()) << endl;
             if (mpTorrentList.find(hash) == mpTorrentList.end())
             {
                 send(socket, "-1", 2, 0);
@@ -167,6 +168,25 @@ void Request(int socket)
                 send(socket, strsend.c_str(), strsend.size(), 0);
             }
             cout << "get ends." << endl;
+        }
+        else if (command == "remove")
+        {
+            cout << "remove" << endl;
+            string hash = str.substr(idx + 1);
+            int num = mpTorrentList.erase(hash);
+            int stat=1;
+            if (num <= 0)
+            {
+                stat=-1;
+                send(socket,(char *)&stat,sizeof(stat),0);
+                continue;
+            }
+            writeSeederlist(seedfilepath, mpTorrentList);
+            int trcmd = rmtor;
+            int st = send(othrtracker, (char *)&trcmd, sizeof(trcmd), 0);
+            st = send(othrtracker, hash.c_str(), hash.size() + 1, 0);
+            send(socket,(char *)&stat,sizeof(stat),0);
+            cout << "removed successfully" << endl;
         }
         else if (command == "tracker")
         {
@@ -270,6 +290,27 @@ void connTrack()
                 sendSeedlist(seed);
                 cout << "sent seederlist:" << sz << endl;
             }
+            else if (encmd == rmtor)
+            {
+                cout <<"remove entry"<<endl;
+                string hash = "";
+                int len = 0;
+                char buffer[41];
+                bzero(buffer, 40);
+                while ((len = recv(othrtracker, buffer, 41, 0)) < 41)
+                {
+                    hash += (string)buffer;
+                    bzero(buffer, 40);
+                }
+                if (hash.size() == 40)
+                {
+                    int num = mpTorrentList.erase(hash);
+                    if (num <= 0)
+                        continue;
+                    writeSeederlist(seedfilepath, mpTorrentList);
+                }
+                cout <<"remove completed"<<endl;
+            }
         }
         othrtracker = -1;
     }
@@ -278,7 +319,7 @@ void connTrack()
 int main(int argc, char *argv[])
 {
     int server_fd, new_socket, valread;
-
+    blog = false;
     char buffer[1024] = {0};
 
     if (argc != 5)

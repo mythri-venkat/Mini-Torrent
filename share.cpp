@@ -26,18 +26,50 @@ string clientip, port;
 struct sockaddr_in myaddr, trackeraddr1, trackeraddr2, currtracker;
 int trackfd;
 vector<thread> downthread;
-map<string,tProp> downloads;
+map<string, tProp> downloads;
+
+
+//seperate arguments of commands with space and store them in a vector.
+vector<string> getArgs(string command)
+{
+    //cout << "cm:"<<command;
+    int idxfirst = 0;
+    int idxlast = command.find(" ");
+
+    vector<string> args;
+
+    while (idxlast != string ::npos)
+    {
+
+        string cmd = command.substr(idxfirst, idxlast - idxfirst);
+        args.push_back(cmd);
+        idxfirst = idxlast + 1;
+        idxlast = command.find(" ", idxfirst);
+        while (idxlast != string::npos && command[idxlast - 1] == '\\')
+        {
+            command.erase(idxlast - 1, 1);
+            idxlast = command.find(" ", idxlast);
+        }
+    }
+    idxlast = idxlast == string::npos ? command.length() - 1 : idxlast;
+    args.push_back(command.substr(idxfirst, idxlast - idxfirst + 1));
+
+    return args;
+}
+
 void share(string src, string dest)
 {
+    cout << src << "   "<<dest;
+    
     int fsrc = open(src.c_str(), O_RDONLY, 0);
     if (fsrc == -1)
     {
-        cout << "FAILURE:FILE_NOT_FOUND" << endl;
+        cout << "FAILURE:FILE_NOT_FOUND:"<<src << endl;
         return;
     }
     int fdest = open(dest.c_str(), O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     int chunksize = 512 * 1024;
-    
+
     size_t size;
     char charIP[INET_ADDRSTRLEN];
     string strdest;
@@ -68,35 +100,34 @@ void share(string src, string dest)
     strdest += "size:" + strsize + "\n";
     cout << strdest << endl;
     write(fdest, strdest.c_str(), strdest.size());
-    string strtemp="";
+    string strtemp = "";
 
-    unsigned char buffer[chunksize+1];
-    bzero(buffer,chunksize);
+    unsigned char buffer[chunksize + 1];
+    bzero(buffer, chunksize);
     while ((size = read(fsrc, buffer, chunksize)) > 0)
     {
         unsigned char hashbuf[SHA_DIGEST_LENGTH];
-        buffer[chunksize]='\0';
-        SHA1(buffer,strlen((char *)buffer), hashbuf);
-        
-        strtemp +=  GetHexRepresentation(hashbuf,SHA_DIGEST_LENGTH);
-        bzero(buffer,chunksize);
-       
+        buffer[chunksize] = '\0';
+        SHA1(buffer, strlen((char *)buffer), hashbuf);
+
+        strtemp += GetHexRepresentation(hashbuf, SHA_DIGEST_LENGTH);
+        bzero(buffer, chunksize);
     }
-   
-    cout << strtemp<<" "<<strtemp.size() << endl;
-    write(fdest, strtemp.c_str(), strtemp.size()+1);
+
+    cout << strtemp << " " << strtemp.size() << endl;
+    write(fdest, strtemp.c_str(), strtemp.size() + 1);
 
     unsigned char hoh[SHA_DIGEST_LENGTH];
-    SHA1((unsigned char *)strtemp.c_str(),strtemp.size(),hoh);
-    
-    strtemp=GetHexRepresentation(hoh,SHA_DIGEST_LENGTH);
-    cout << strtemp<<" "<<strtemp.size() << endl;
-     str+=strtemp;
-    size_t s = send(trackfd, str.c_str(), str.size()+1, 0);
+    SHA1((unsigned char *)strtemp.c_str(), strtemp.size(), hoh);
+
+    strtemp = GetHexRepresentation(hoh, SHA_DIGEST_LENGTH);
+    cout << strtemp << " " << strtemp.size() << endl;
+    str += strtemp;
+    size_t s = send(trackfd, str.c_str(), str.size() + 1, 0);
     if (s == -1)
     {
         trackfd = updatetracker(trackeraddr1, trackeraddr2, &currtracker);
-        send(trackfd, str.c_str(), str.size()+1, 0);
+        send(trackfd, str.c_str(), str.size() + 1, 0);
     }
 
     close(fsrc);
@@ -107,55 +138,54 @@ void share(string src, string dest)
     tp.path = src;
     tp.complete = true;
     tp.size = st.st_size;
-    downloads[strtemp]=tp;
+    downloads[strtemp] = tp;
     writeLog("sharing to tracker compeleted.");
     cout << "SUCCESS:" + dest << endl;
 }
 
-void downloadfile(string hash,vector<struct tProp> vec,string dest){
-    
-    string str="down\n"+hash;
+void downloadfile(string hash, vector<struct tProp> vec, string dest)
+{
+    string str = "down\n" + hash;
     struct tProp tp = vec[0];
-    sockaddr_in addr = setAddr(tp.clientip+":"+tp.port);
-    cout << tp.clientip+":"+tp.port<<endl;
+    sockaddr_in addr = setAddr(tp.clientip + ":" + tp.port);
+    cout << tp.clientip + ":" + tp.port << endl;
     cout.flush();
-    writeLog("download from:\n"+tp.clientip+":"+tp.port);
+    writeLog("download from:\n" + tp.clientip + ":" + tp.port);
     int fd = connectSocket(addr);
-    send(fd,str.c_str(),str.size(),0);
+    send(fd, str.c_str(), str.size(), 0);
     char buffer[BUFSIZ];
-    bzero(buffer,BUFSIZ);
+    bzero(buffer, BUFSIZ);
     //int destfd = open(dest.c_str(),O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-    long long sz=-1;
+    long long sz = -1;
     long long rcvsz = 0;
-    string temp="";
+    string temp = "";
     unsigned long size;
-    int rc=recv(fd, (char *)&size, sizeof(size), 0);
-        //size = atoi(buffer);
-       writeLog("sIZEz:"+size);
-    if(size == -1){
-        cout << "FAILURE:M_TORRENT_FILE_NOT_FOUND"<<endl;
+    int rc = recv(fd, (char *)&size, sizeof(size), 0);
+    //size = atoi(buffer);
+    writeLog("sIZEz:" + size);
+    if (size == -1)
+    {
+        cout << "FAILURE:M_TORRENT_FILE_NOT_FOUND" << endl;
         return;
     }
-        
 
-    FILE * savefile = fopen(dest.c_str(), "w");
-        
+    FILE *savefile = fopen(dest.c_str(), "w");
 
     int remain_data = size;
     ssize_t len;
-    while ((remain_data > 0) && ((len = recv(fd, buffer, BUFSIZ, 0)) > 0) )
+    while ((remain_data > 0) && ((len = recv(fd, buffer, BUFSIZ, 0)) > 0))
     {
         fwrite(buffer, sizeof(char), len, savefile);
         remain_data -= len;
-        
     }
-    
+
     fclose(savefile);
-    cout << "SUCCESS:"<<dest<<endl;
+    cout << "SUCCESS:" << dest << endl;
 }
 
 void getlist(string torrent, string savefile)
 {
+    
     int fd = open(torrent.c_str(), O_RDONLY, 0);
     if (fd == -1)
     {
@@ -171,24 +201,23 @@ void getlist(string torrent, string savefile)
     }
 
     string hash = strfile.substr(strfile.find_last_of('\n') + 1);
-    cout << hash.size()<<"h:"<<hash<<endl;
-    
+    cout << hash.size() << "h:" << hash << endl;
 
     unsigned char hoh[SHA_DIGEST_LENGTH];
-    
-    SHA1((unsigned char *)hash.c_str(),hash.size(),hoh);
-    
-    string strtemp= GetHexRepresentation(hoh,SHA_DIGEST_LENGTH);
-    cout << strtemp <<" "<<strtemp.size()<< endl;
+
+    SHA1((unsigned char *)hash.c_str(), hash.size(), hoh);
+
+    string strtemp = GetHexRepresentation(hoh, SHA_DIGEST_LENGTH);
+    cout << strtemp << " " << strtemp.size() << endl;
     string str = "get\n" + strtemp;
 
-    size_t s = send(trackfd, str.c_str(), str.size()+1, 0);
+    size_t s = send(trackfd, str.c_str(), str.size() + 1, 0);
     if (s == -1)
     {
         trackfd = updatetracker(trackeraddr1, trackeraddr2, &currtracker);
-        send(trackfd, str.c_str(), str.size()+1, 0);
+        send(trackfd, str.c_str(), str.size() + 1, 0);
     }
-    
+
     string rcv = "";
     char bufrcv[BUFSIZ];
     int strsize = 0;
@@ -206,9 +235,9 @@ void getlist(string torrent, string savefile)
             int idx = rcv.find('\n');
             strsize = stoi(rcv.substr(0, idx));
             szrcv = 0;
-            rcv.erase(0, idx+1);
+            rcv.erase(0, idx + 1);
         }
-        
+
         szrcv += BUFSIZ;
     }
     if (rcv == "")
@@ -227,14 +256,59 @@ void getlist(string torrent, string savefile)
                 int idx = rcv.find('\n');
                 strsize = stoi(rcv.substr(0, idx));
                 szrcv = 0;
-                rcv.erase(0, idx+1);
+                rcv.erase(0, idx + 1);
             }
-            
+
             szrcv += BUFSIZ;
         }
     }
     cout << "rcv" << endl;
 
-    downthread.push_back(thread(downloadfile,strtemp,readProp(rcv),savefile));
-    
+    downthread.push_back(thread(downloadfile, strtemp, readProp(rcv), savefile));
+}
+
+void removeTorrent(string torrent)
+{
+    int fd = open(torrent.c_str(), O_RDONLY, 0);
+    if (fd == -1)
+    {
+        cout << "FAILURE:INVALID_ARGUMENTS";
+        return;
+    }
+    char buffer[BUFSIZ];
+    string strfile = "";
+    size_t size;
+    while ((size = read(fd, buffer, BUFSIZ)) > 0)
+    {
+        strfile += (string)buffer;
+    }
+
+    string hash = strfile.substr(strfile.find_last_of('\n') + 1);
+    cout << hash.size() << "h:" << hash << endl;
+
+    unsigned char hoh[SHA_DIGEST_LENGTH];
+
+    SHA1((unsigned char *)hash.c_str(), hash.size(), hoh);
+
+    string strtemp = GetHexRepresentation(hoh, SHA_DIGEST_LENGTH);
+    cout << strtemp << " " << strtemp.size() << endl;
+    if (downloads[strtemp].complete)
+    {
+        string str = "remove\n" + strtemp;
+
+        size_t s = send(trackfd, str.c_str(), str.size() + 1, 0);
+        if (s == -1)
+        {
+            trackfd = updatetracker(trackeraddr1, trackeraddr2, &currtracker);
+            send(trackfd, str.c_str(), str.size() + 1, 0);
+            int stat;
+            recv(trackfd,(char *)&stat,sizeof(stat),0);
+            if(stat ==-1){
+                cout <<"ERR:FILE_NOT_FOUND"<<endl;
+            }
+            else{
+                cout <<"SUCCESS:"<<torrent<<endl;
+            }
+        }
+    }
 }
