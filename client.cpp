@@ -17,7 +17,7 @@ void downReq(int socket){
     string str;
     while (read(socket, buffer, 1024) > 0)
     {
-        cout <<"buf:"<<buffer << endl;
+        //cout <<"buf:"<<buffer << endl;
         str = buffer;
         string command = str;
         int idx = str.find('\n');
@@ -32,15 +32,16 @@ void downReq(int socket){
             }
             else{
                 writeLog("sendstart");
+                //cout <<  downloads[hash].path<<endl;
                 string strfilepath=downloads[hash].path;
                 int fd = open(strfilepath.c_str(),O_RDONLY,0);
+                //writeLog("opn");
                 if(fd == -1){
                     send(socket,"-1",2,0);
                     writeLog("notsent");
                 }
                 else{
                    
-                    //cout << "send"<<endl;
                     int sent_bytes=0;
                     
                     //string sz = to_string(downloads[hash].size);
@@ -57,6 +58,7 @@ void downReq(int socket){
                 
                     }
                     writeLog("send complete");
+
                     //shutdown(socket,0);
                     //close(socket);
                 }
@@ -82,7 +84,7 @@ void listenClient(){
 
         if ((new_socket = accept(server_fd, (struct sockaddr *)&myaddr, (socklen_t *)&addrlen)) < 0)
         {
-            cout << ("accept");
+            writeLog("accept");
             exit(EXIT_FAILURE);
         }
 
@@ -119,7 +121,7 @@ int main(int argc, char *argv[])
     trackeraddr1 = setAddr(argv[2]);
     trackeraddr2 = setAddr(argv[3]);
 
-    currtracker = trackeraddr1;
+    currtracker = rand()%2 == 0?trackeraddr1:trackeraddr2;
 
     logfd = open(argv[4], O_CREAT | O_WRONLY | O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     writeLog("--log started--");
@@ -149,7 +151,7 @@ int main(int argc, char *argv[])
             else
             cout <<"ERR:INVALID_ARGUMENTS"<<endl;
         }
-        else if(command == "show downloads"){
+        else if(strline == "show downloads"){
             
                 cout << "Downloads"<<endl;
                 for(auto it=downloads.begin();it != downloads.end();it++){
@@ -165,9 +167,11 @@ int main(int argc, char *argv[])
             cout <<"ERR:INVALID_ARGUMENTS"<<endl; 
         }
         else if(command == "close"){
+            exit(0);
             break;
         }
     }
+    listen.join();
     close(logfd);
     return 0;
 }

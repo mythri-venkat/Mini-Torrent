@@ -116,7 +116,7 @@ void Request(int socket)
     string str;
     while (read(socket, buffer, 1024) > 0)
     {
-        cout << "buf:" << buffer << endl;
+        //cout << "buf:" << buffer << endl;
         str = buffer;
         string command = str;
         int idx = str.find('\n');
@@ -126,13 +126,13 @@ void Request(int socket)
         {
             struct tProp tp;
             string hash = "";
-            cout << ("share started.") << endl;
+            writeLog("share started.");
             string str2 = str;
             int idx2 = str.find('\n', idx + 1);
             if (idx2 != string::npos)
                 str2 = str.substr(idx + 1, idx2 - idx - 1);
-            cout << str2 << endl;
-            cout.flush();
+            //cout << str2 << endl;
+            //cout.flush();
             int idx = str2.find(":");
             tp.clientip = str2.substr(0, idx);
             tp.port = str2.substr(idx + 1);
@@ -140,38 +140,38 @@ void Request(int socket)
             idx = str.find('\n', idx2 + 1);
             if (idx != string::npos)
                 str3 = str.substr(idx2 + 1, idx - idx2 - 1);
-            cout << str3 << endl;
+            //cout << str3 << endl;
             tp.filename = str3;
             hash = str.substr(idx + 1);
             mpTorrentList[hash].push_back(tp);
             string seed = writeSeederlist(seedfilepath, mpTorrentList);
-            cout << "seeder list updated:" << mpTorrentList.size() << endl;
+            writeLog("seeder list updated:" +mpTorrentList.size());
 
             sendSeedlist(seed);
         }
         else if (command == "get")
         {
-            cout << "get" << endl;
+            writeLog("Get");
             string hash = str.substr(idx + 1);
             //cout << GetHexRepresentation((unsigned char *)hash.c_str(), hash.size()) << endl;
             if (mpTorrentList.find(hash) == mpTorrentList.end())
             {
                 send(socket, "-1", 2, 0);
-                cout << "not found" << endl;
+                writeLog("not found");
             }
             else
             {
                 string strsend = writeProp(mpTorrentList[hash]);
                 string sz = to_string(strsend.size()) + "\n";
                 strsend.insert(0, sz);
-                cout << "sent size" << endl;
+                writeLog("sent size");
                 send(socket, strsend.c_str(), strsend.size(), 0);
             }
-            cout << "get ends." << endl;
+            writeLog("get ends.");
         }
         else if (command == "remove")
         {
-            cout << "remove" << endl;
+            writeLog("remove");
             string hash = str.substr(idx + 1);
             int num = mpTorrentList.erase(hash);
             int stat=1;
@@ -186,13 +186,13 @@ void Request(int socket)
             int st = send(othrtracker, (char *)&trcmd, sizeof(trcmd), 0);
             st = send(othrtracker, hash.c_str(), hash.size() + 1, 0);
             send(socket,(char *)&stat,sizeof(stat),0);
-            cout << "removed successfully" << endl;
+            writeLog("removed successfully");
         }
         else if (command == "tracker")
         {
             if (othrtracker == -1)
             {
-                writeLog("connected to tracker");
+                writeLog("connected to other tracker");
                 othrtracker = socket;
                 //trackerComm(socket);
                 break;
@@ -207,7 +207,7 @@ void connTrack()
 {
     while (1)
     {
-        cout << "connecting to tracker" << endl;
+       writeLog("connecting to tracker");
 
         while (othrtracker == -1)
         {
@@ -215,7 +215,7 @@ void connTrack()
             if (othrtracker == -1)
                 sleep(2);
         }
-        cout << "conn established:" << othrtracker << endl;
+        writeLog( "conn established:" );
         int sz = send(othrtracker, "tracker\0", 8, 0);
         //cout << "sz:" << sz << endl;
 
@@ -226,24 +226,24 @@ void connTrack()
         int encmd;
         while (read(othrtracker, (char *)&encmd, sizeof(encmd)) > 0)
         {
-            cout << "cmd:" << encmd << endl;
+            //cout << "cmd:" << encmd << endl;
 
             if (encmd == setseed)
             {
-                cout << "receiving seedlist" << endl;
+                writeLog("receiving seedlist");
                 char buffer[BUFSIZ];
                 bzero(buffer, BUFSIZ);
                 string str;
                 int size = 0;
                 recv(othrtracker, (char *)&size, sizeof(size), 0);
-                cout << "size:" << size << endl;
+                //cout << "size:" << size << endl;
                 size_t len = 0;
                 while (size > 0 && (len = recv(othrtracker, buffer, BUFSIZ, 0)) > 0)
                 {
                     str += (string)buffer;
                     size -= len;
                 }
-                cout << "str:" << str << endl;
+                //cout << "str:" << str << endl;
                 if (str == "" && mpTorrentList.size() != 0)
                 {
                     string seed = writeSeederlist("", mpTorrentList);
@@ -282,17 +282,17 @@ void connTrack()
                 {
                     writeSeederlist(seedfilepath, mpTorrentList);
                 }
-                cout << "set seedlist" << endl;
+                writeLog("updated seedlist");
             }
             else if (encmd == getseed)
             {
                 string seed = writeSeederlist("", mpTorrentList);
                 sendSeedlist(seed);
-                cout << "sent seederlist:" << sz << endl;
+                writeLog( "sent seederlist:" );
             }
             else if (encmd == rmtor)
             {
-                cout <<"remove entry"<<endl;
+                writeLog("remove entry");
                 string hash = "";
                 int len = 0;
                 char buffer[41];
@@ -309,7 +309,7 @@ void connTrack()
                         continue;
                     writeSeederlist(seedfilepath, mpTorrentList);
                 }
-                cout <<"remove completed"<<endl;
+                writeLog("remove completed");
             }
         }
         othrtracker = -1;
@@ -330,7 +330,7 @@ int main(int argc, char *argv[])
 
     logfd = open(argv[4], O_CREAT | O_WRONLY | O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     cout << "--started:tracker--" << endl;
-
+    writeLog("--tracker log started--");
     myaddr = setAddr(argv[1]);
     otheraddr = setAddr(argv[2]);
 
@@ -351,7 +351,7 @@ int main(int argc, char *argv[])
 
         if ((new_socket = accept(server_fd, (struct sockaddr *)&myaddr, (socklen_t *)&addrlen)) < 0)
         {
-            cout << ("accept");
+            //cout << ("accept");
             exit(EXIT_FAILURE);
         }
 
